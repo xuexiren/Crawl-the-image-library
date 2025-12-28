@@ -1,0 +1,2 @@
+aiohttp~=3.10.8
+sortedcontainers~=2.4.0
