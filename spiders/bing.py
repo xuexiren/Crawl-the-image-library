@@ -5,8 +5,9 @@ import time
 import aiohttp
 from sortedcontainers import SortedSet
 
-import func.common
-
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+}
 
 async def get_img_url(url, headers, params, imgs_list, que, cnt):
     async with aiohttp.ClientSession() as session:
@@ -31,16 +32,15 @@ def spider(keyword, cnt, que):
     step = 2
     while len(imgs_list) < int(cnt):
         task_list = []
-        for idx in range(page, page + step):
+        for _ in range(page, page + step):
             params = (
                 ('q', keyword),
                 ('first', page * 35),
                 ('count', '35'),
             )
-            c = get_img_url(url=url, headers=func.common.headers, params=params, imgs_list=imgs_list, que=que, cnt=cnt)
+            c = get_img_url(url=url, headers=HEADERS, params=params, imgs_list=imgs_list, que=que, cnt=cnt)
             task = asyncio.ensure_future(c)
             task_list.append(task)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(asyncio.wait(task_list))
         page += step
-        # step *= 2

@@ -1,39 +1,61 @@
-import os
-from multiprocessing import Queue, Process
+from multiprocessing import Process, Queue
 
-import urllib3
+import downloader as downloader  # 引入上面的新模块
+import spiders.baidu as baidu
+import spiders.bing as bing
+import spiders.so as so
+import spiders.sogo as sogo
 
-import func.baidu
-import func.bing
-import func.common
-import func.so
-import func.sogo
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+def run_spider(target_func, keyword, cnt, que):
+    """包装函数，用于启动爬虫进程"""
+    try:
+        target_func(keyword, cnt, que)
+    except Exception as e:
+        print(f"爬虫进程出错: {e}")
 
 if __name__ == '__main__':
-
-    if not os.path.exists('./img'):
-        make_dir = os.mkdir('./img')
-
+    # 确保在 Windows 下正常运行
     que = Queue()
+    
     keyword = input("请输入关键词: ")
-    cnt = input("请输入数量: ")
+    # 增加输入校验
+    try:
+        cnt = int(input("请输入每个引擎爬取数量: "))
+    except ValueError:
+        cnt = 50
+        print("输入无效，默认设置为 50")
 
-    p1 = Process(target=func.baidu.spider, args=(keyword, cnt, que))
-    p2 = Process(target=func.bing.spider, args=(keyword, cnt, que))
-    p3 = Process(target=func.sogo.spider, args=(keyword, cnt, que))
-    p4 = Process(target=func.so.spider, args=(keyword, cnt, que))
-    p1.start()
-    p2.start()
-    p3.start()
-    p4.start()
+    producers = [
+        Process(target=run_spider, args=(baidu.spider, keyword, cnt, que)),
+        Process(target=run_spider, args=(bing.spider, keyword, cnt, que)),
+        Process(target=run_spider, args=(sogo.spider, keyword, cnt, que)),
+        Process(target=run_spider, args=(so.spider, keyword, cnt, que))
+    ]
 
-    c1 = Process(target=func.common.download_img, args=(que,))
-    c2 = Process(target=func.common.download_img, args=(que,))
-    c3 = Process(target=func.common.download_img, args=(que,))
-    c4 = Process(target=func.common.download_img, args=(que,))
-    c1.start()
-    c2.start()
-    c3.start()
-    c4.start()
+    # 定义消费者（下载器）- 开启 4 个进程下载
+    consumers = [Process(target=downloader.download_img, args=(que,)) for _ in range(4)]
+
+    print("--- 开始爬取 ---")
+    
+    # 启动所有进程
+    for p in producers:
+        p.start()
+    for c in consumers:
+        c.start()
+
+    # 等待所有爬虫生产完毕
+    for p in producers:
+        p.join()
+    
+    print("--- 爬虫任务完成，等待图片下载结束 ---")
+
+    # 发送结束信号 (有多少个消费者就发送多少个 None)
+    for _ in range(len(consumers)):
+        que.put(None)
+
+    # 等待下载完成
+    for c in consumers:
+        c.join()
+
+    print("--- 全部任务结束 ---")
